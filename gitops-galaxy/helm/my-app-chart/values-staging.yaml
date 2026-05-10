@@ -1,0 +1,141 @@
+# Staging Environment Values
+# Override base values for staging deployment
+environment: staging
+
+# Frontend Configuration
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: "tumbaoka/sherlock-logs-frontend"
+    tag: "staging"  # Will be updated by ArgoCD Image Updater
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 80
+    nodePort: 30080
+  
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    hosts:
+      - host: "app-staging.example.com"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: app-staging-tls
+        hosts:
+          - app-staging.example.com
+
+# Backend Configuration
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: "tumbaoka/sherlock-logs-backend"
+    tag: "staging"  # Will be updated by ArgoCD Image Updater
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 5000
+    targetPort: 5000
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 5000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  auth:
+    username: "sherlock_staging"
+    password: "staging-secure-password"
+    database: "sherlock_staging"
+    existingSecret: "postgres-secret-staging"
+    existingSecretPasswordKey: "password"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClassName: "local-path"
+  
+  metrics:
+    enabled: true
+
+# Resource Quotas
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    pods: "20"
+    services: "10"
+    persistentvolumeclaims: "5"
+
+# External Secrets
+externalSecrets:
+  enabled: true
+  vaultAddress: "http://vault.vault.svc.cluster.local:8200"
+  secretStore: "vault-backend"
+  secretPath: "secret/data/staging/app"
+
+# ConfigMap
+configMap:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "staging"
+  DEBUG: "false"
+  API_TIMEOUT: "30"
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

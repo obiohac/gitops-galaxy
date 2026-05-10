@@ -1,0 +1,91 @@
+gitops-galaxy/
+│
+├── apps/
+│   └── my-app/
+│       ├── backend/
+│       ├── frontend/
+│       ├── Dockerfile
+│       └── src/
+│
+├── helm/
+│   ├── my-app-chart/
+│   │   ├── Chart.yaml
+│   │   ├── values.yaml
+│   │   ├── values-dev.yaml
+│   │   ├── values-staging.yaml
+│   │   ├── values-prod.yaml
+│   │   │
+│   │   └── templates/
+│   │       ├── deployment-backend.yaml
+│   │       ├── deployment-frontend.yaml
+│   │       ├── service-backend.yaml
+│   │       ├── service-frontend.yaml
+│   │       ├── configmap.yaml
+│   │       ├── ingress.yaml
+│   │       ├── hpa.yaml
+│   │       └── _helpers.tpl
+│   │
+│   └── database/
+│       ├── postgres-values.yaml
+│       └── mysql-values.yaml
+│
+├── argocd/
+│   ├── bootstrap/
+│   │   ├── argocd-install.yaml
+│   │   ├── rbac.yaml
+│   │   └── project.yaml
+│   │
+│   ├── applications/
+│   │   ├── app-dev.yaml
+│   │   ├── app-staging.yaml
+│   │   └── app-prod.yaml
+│   │
+│   └── image-updater/
+│       ├── image-updater-install.yaml
+│       ├── config.yaml
+│       └── rbac.yaml
+│
+├── k8s/
+│   ├── namespaces/
+│   │   ├── dev.yaml
+│   │   ├── staging.yaml
+│   │   └── prod.yaml
+│   │
+│   ├── quotas/
+│   │   ├── dev-quota.yaml
+│   │   ├── staging-quota.yaml
+│   │   └── prod-quota.yaml
+│   │
+│   └── jobs/
+│       └── db-test-job.yaml
+│
+├── secrets/
+│   ├── vault/
+│   │   ├── vault-config.yaml
+│   │   └── external-secret.yaml
+│   │
+│   └── sealed-secrets/ (optional alternative)
+│
+├── ci-cd/
+│   ├── github-actions/
+│   │   ├── deploy-dev.yaml
+│   │   ├── deploy-staging.yaml
+│   │   ├── deploy-prod.yaml
+│   │   └── rollback.yaml
+│   │
+│   └── scripts/
+│       ├── build.sh
+│       ├── push.sh
+│       ├── helm-upgrade.sh
+│       └── argocd-sync.sh
+│
+├── docs/
+│   ├── architecture.md
+│   ├── helm-guide.md
+│   ├── argocd-guide.md
+│   ├── troubleshooting.md
+│   └── screenshots/
+│
+├── .gitignore
+├── README.md
+└── Makefile

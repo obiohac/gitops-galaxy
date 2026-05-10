@@ -1,0 +1,63 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-app-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/obiohac/gitops-galaxy
+    targetRevision: HEAD
+    path: helm/my-app-chart
+
+    helm:
+      releaseName: postgres
+      valueFiles:
+      - values.yaml
+      - values-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-prune database to prevent accidental data loss
+      selfHeal: true
+    
+    syncOptions:
+    - CreateNamespace=true
+    - Validate=false  # Some statefulset resources may have issues with validation
+    
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: "*"
+      kind: Secret
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+
+  info:
+    - name: Backup Strategy
+      value: Daily at 2 AM
+    - name: Retention Policy
+      value: 7 days
+    - name: Documentation
+      value: docs/DATABASE.md
+
+  # NOTE: Database applications typically don't use image updater
+  # as image updates should be carefully managed for data-bearing services

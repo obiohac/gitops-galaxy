@@ -1,0 +1,4 @@
+replicaCount: 1
+image:
+  backend: nginx:1.25
+  frontend: nginx:1.25

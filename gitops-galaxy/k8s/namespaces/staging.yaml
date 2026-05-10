@@ -1,0 +1,98 @@
+# Staging Namespace
+# Namespace for staging environment with proper isolation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    name: staging
+    environment: staging
+    managed-by: argocd
+  annotations:
+    description: "Staging environment for testing before production"
+---
+# Staging ResourceQuota
+# Limits resource usage in staging namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: staging-quota
+  namespace: staging
+spec:
+  hard:
+    # CPU and memory limits
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    
+    # Object count limits
+    pods: "20"
+    services: "10"
+    apps/deployments: "10"
+    apps/statefulsets: "5"
+    persistentvolumeclaims: "5"
+    configmaps: "20"
+    secrets: "20"
+---
+# Staging NetworkPolicy
+# Default deny all ingress and egress, then allow necessary traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: staging-default-deny
+  namespace: staging
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# Staging Allow DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: staging-allow-dns
+  namespace: staging
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Staging LimitRange
+# Enforces resource limits per container
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: staging-limits
+  namespace: staging
+spec:
+  limits:
+  - type: Container
+    max:
+      cpu: "2"
+      memory: "1Gi"
+    min:
+      cpu: "10m"
+      memory: "32Mi"
+    default:
+      cpu: "500m"
+      memory: "256Mi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "64Mi"
+  - type: Pod
+    max:
+      cpu: "4"
+      memory: "2Gi"
+    min:
+      cpu: "10m"
+      memory: "32Mi"

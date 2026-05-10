@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-app-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/obiohac/gitops-galaxy
+    targetRevision: HEAD
+    path: helm/my-app-chart
+
+    helm:
+      releaseName: postgres
+      valueFiles:
+      - values.yaml
+      - values-prod.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+
+  syncPolicy:
+    automated:
+      prune: false  # Don't auto-prune database - CRITICAL for production data safety
+      selfHeal: false
+    
+    syncOptions:
+    - CreateNamespace=true
+    - Validate=true  # Full validation for production
+    
+    retry:
+      limit: 2
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: "*"
+      kind: Secret
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+
+  info:
+    - name: Backup Strategy
+      value: Hourly (automated)
+    - name: Retention Policy
+      value: 30 days
+    - name: Replication
+      value: Multi-zone (High Availability)
+    - name: Documentation
+      value: docs/DATABASE.md
+    - name: Environment
+      value: Production
+    - name: CRITICAL
+      value: Manual sync only - requires approval
+
+  # NOTE: Database applications typically don't use image updater
+  # as image updates should be carefully managed for data-bearing services

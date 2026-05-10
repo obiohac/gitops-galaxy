@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-test
+spec:
+  template:
+    spec:
+      containers:
+      - name: tester
+        image: postgres:16
+        command: ["sh", "-c"]
+        args:
+          - psql -h postgres -U appuser -d appdb -c "SELECT 1;"
+        env:
+        - name: PGPASSWORD
+          value: "apppass"
+      restartPolicy: Never

@@ -1,0 +1,32 @@
+{{- if .Values.frontend.enabled }}
+# Frontend Service
+# Exposes the frontend deployment to internal and external traffic
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "my-app-chart.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "my-app-chart.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  
+  # Port configuration
+  ports:
+  - port: {{ .Values.frontend.service.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+    {{- if and (eq .Values.frontend.service.type "NodePort") .Values.frontend.service.nodePort }}
+    nodePort: {{ .Values.frontend.service.nodePort }}
+    {{- end }}
+  
+  # Selector to route traffic to frontend pods
+  selector:
+{{ include "my-app-chart.selectorLabels" . | nindent 4 }}
+    component: frontend
+  
+  # Session affinity for sticky sessions (optional)
+  sessionAffinity: None
+{{- end }}

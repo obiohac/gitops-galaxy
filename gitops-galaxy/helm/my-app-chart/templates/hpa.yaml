@@ -1,0 +1,64 @@
+{{- if and .Values.frontend.enabled .Values.frontend.autoscaling.enabled }}
+# Horizontal Pod Autoscaler
+# Automatically scales frontend pods based on CPU and memory usage
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "my-app-chart.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "my-app-chart.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  # Reference to the Deployment to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "my-app-chart.fullname" . }}-frontend
+  
+  # Min and max replica count
+  minReplicas: {{ .Values.frontend.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.frontend.autoscaling.maxReplicas }}
+  
+  # Metrics for scaling decisions
+  metrics:
+  {{- if .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.frontend.autoscaling.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.frontend.autoscaling.targetMemoryUtilizationPercentage }}
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.frontend.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
+  
+  # Behavior for scaling up and down
+  behavior:
+    # Scale up behavior
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+    
+    # Scale down behavior (more conservative)
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      selectPolicy: Min
+{{- end }}

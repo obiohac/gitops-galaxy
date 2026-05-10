@@ -1,0 +1,139 @@
+{{- if .Values.frontend.enabled }}
+# Frontend Deployment
+# Deploys the Nginx-based frontend application with autoscaling and probes
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-app-chart.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+{{ include "my-app-chart.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  {{ if not .Values.frontend.autoscaling.enabled }}
+  replicas: {{ .Values.frontend.replicaCount }}
+  {{ end }}
+  selector:
+    matchLabels:
+{{ include "my-app-chart.selectorLabels" . | nindent 6 }}
+      component: frontend
+  
+  # Pod template specification
+  template:
+    metadata:
+      labels:
+{{ include "my-app-chart.selectorLabels" . | nindent 8 }}
+        component: frontend
+      annotations:
+        # Trigger pod restart when ConfigMap changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "my-app-chart.serviceAccountName" . }}
+      
+      # Security context for pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+        capabilities:
+          drop:
+            - ALL
+      
+      # Container specification
+      containers:
+      - name: frontend
+        image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+        imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+        
+        # Container ports
+        ports:
+        - name: http
+          containerPort: {{ .Values.frontend.service.targetPort }}
+          protocol: TCP
+        
+        # Liveness probe - checks if container is alive
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Readiness probe - checks if ready to receive traffic
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        
+        # Resource requests and limits
+        resources:
+          requests:
+            memory: {{ .Values.frontend.resources.requests.memory | quote }}
+            cpu: {{ .Values.frontend.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.frontend.resources.limits.memory | quote }}
+            cpu: {{ .Values.frontend.resources.limits.cpu | quote }}
+        
+        # Volume mounts
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /var/cache/nginx
+        
+        # Environment variables from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: {{ include "my-app-chart.configmapName" . }}
+      
+      # Pod volumes
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "my-app-chart.configmapName" . }}
+          items:
+          - key: nginx.conf
+            path: default.conf
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+      
+      # Pod anti-affinity to spread replicas across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - {{ include "my-app-chart.name" . }}
+                - key: component
+                  operator: In
+                  values:
+                  - frontend
+              topologyKey: kubernetes.io/hostname
+      
+      # Toleration for node taints
+      tolerations: []
+      
+      # Node selector if needed
+      nodeSelector: {}
+      
+      # Termination grace period for graceful shutdown
+      terminationGracePeriodSeconds: 30
+{{- end }}

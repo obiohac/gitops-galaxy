@@ -1,0 +1,164 @@
+# Production Environment Values
+# Override base values for production deployment
+environment: production
+
+# Frontend Configuration
+frontend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: "tumbaoka/sherlock-logs-frontend"
+    tag: "prod"  # Will be updated by ArgoCD Image Updater (patch updates only)
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 80
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 65
+    targetMemoryUtilizationPercentage: 75
+  
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      cert-manager.io/cluster-issuer: "letsencrypt-prod"
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/rate-limit: "100"
+    hosts:
+      - host: "app.example.com"
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: app-prod-tls
+        hosts:
+          - app.example.com
+
+# Backend Configuration
+backend:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: "tumbaoka/sherlock-logs-backend"
+    tag: "prod"  # Will be updated by ArgoCD Image Updater (patch updates only)
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 5000
+    targetPort: 5000
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "2000m"
+  
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    failureThreshold: 2
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  auth:
+    username: "sherlock_prod"
+    password: "" # Use existingSecret
+    database: "sherlock_prod"
+    existingSecret: "postgres-secret-prod"
+    existingSecretPasswordKey: "password"
+  
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClassName: "fast-ssd"
+  
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+  
+  metrics:
+    enabled: true
+
+# Resource Quotas
+resourceQuota:
+  enabled: true
+  hard:
+    requests.cpu: "8"
+    requests.memory: "8Gi"
+    limits.cpu: "16"
+    limits.memory: "16Gi"
+    pods: "50"
+    services: "25"
+    persistentvolumeclaims: "10"
+
+# External Secrets
+externalSecrets:
+  enabled: true
+  vaultAddress: "https://vault.vault.svc.cluster.local:8200"
+  secretStore: "vault-backend-prod"
+  secretPath: "secret/data/production/app"
+
+# ConfigMap
+configMap:
+  LOG_LEVEL: "WARN"
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+  API_TIMEOUT: "60"
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+# Security Context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+  capabilities:
+    drop:
+      - ALL
+
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: true
+  name: restricted

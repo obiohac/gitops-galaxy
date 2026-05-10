@@ -1,0 +1,74 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend-app-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    argocd-image-updater.argoproj.io/image-list: frontend=your-org/frontend
+    argocd-image-updater.argoproj.io/frontend.update-strategy: semver:~1.0
+    argocd-image-updater.argoproj.io/frontend.helm.image-name: image.tag
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+spec:
+  # Project to use
+  project: default
+
+  # Source configuration - where to pull manifests from
+  source:
+    repoURL: https://github.com/obiohac/gitops-galaxy
+    targetRevision: HEAD
+    path: helm/my-app-chart
+
+    # Helm-specific configuration
+    helm:
+      releaseName: frontend
+      values: |
+        replicaCount: 2
+        image:
+          repository: your-org/frontend
+          tag: latest
+      # Override with environment-specific values
+      valueFiles:
+      - values.yaml
+      - values-staging.yaml
+
+  # Destination configuration - where to deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging
+
+  # Sync policy configuration
+  syncPolicy:
+    # Automatic syncing
+    automated:
+      # Automatically sync when Git changes
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Auto-sync when drift detected
+      
+    syncOptions:
+    - CreateNamespace=true
+
+    # Retry configuration
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences
+  ignoreDifferences:
+    - group: "*"
+      kind: Secret
+      jsonPointers:
+        - /data
+
+  # Notification settings
+  info:
+    - name: GitHub
+      value: https://github.com/obiohac/gitops-galaxy
+    - name: Slack
+      value: "#deployments"

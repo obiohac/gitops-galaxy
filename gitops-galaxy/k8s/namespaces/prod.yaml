@@ -1,0 +1,98 @@
+# Production Namespace
+# Namespace for production environment with strict isolation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+  labels:
+    name: prod
+    environment: prod
+    managed-by: argocd
+  annotations:
+    description: "Production environment - restrict access"
+---
+# Production ResourceQuota
+# Higher limits for production workloads
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: prod-quota
+  namespace: prod
+spec:
+  hard:
+    # CPU and memory limits
+    requests.cpu: "8"
+    requests.memory: "8Gi"
+    limits.cpu: "16"
+    limits.memory: "16Gi"
+    
+    # Object count limits
+    pods: "50"
+    services: "25"
+    apps/deployments: "20"
+    apps/statefulsets: "10"
+    persistentvolumeclaims: "10"
+    configmaps: "30"
+    secrets: "30"
+---
+# Production NetworkPolicy
+# Default deny all ingress and egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prod-default-deny
+  namespace: prod
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# Production Allow DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prod-allow-dns
+  namespace: prod
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+---
+# Production LimitRange
+# Enforces strict resource limits per container
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: prod-limits
+  namespace: prod
+spec:
+  limits:
+  - type: Container
+    max:
+      cpu: "4"
+      memory: "2Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "1000m"
+      memory: "512Mi"
+    defaultRequest:
+      cpu: "500m"
+      memory: "256Mi"
+  - type: Pod
+    max:
+      cpu: "8"
+      memory: "4Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"

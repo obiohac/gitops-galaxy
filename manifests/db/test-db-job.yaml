@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-test-ping
+  namespace: db-layer
+spec:
+  template:
+    spec:
+      containers:
+      - name: test
+        image: bitnami/postgresql:latest
+        command: ["psql", "-h", "my-db-postgresql", "-U", "postgres", "-c", "SELECT 1;"]
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: my-db-postgresql
+              key: postgres-password
+      restartPolicy: Never
