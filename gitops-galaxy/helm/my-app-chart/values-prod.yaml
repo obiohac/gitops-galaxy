@@ -5,53 +5,77 @@ environment: production
 # Frontend Configuration
 frontend:
   enabled: true
-  replicaCount: 3
+  replicaCount: 1
   image:
     repository: "tumbaoka/sherlock-logs-frontend"
     tag: "prod"  # Will be updated by ArgoCD Image Updater (patch updates only)
     pullPolicy: IfNotPresent
   
   service:
-    type: LoadBalancer
+    type: NodePort
     port: 80
     targetPort: 80
+    nodePort: 30080
   
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "200m"
+      memory: "128Mi"
+      cpu: "100m"
     limits:
-      memory: "512Mi"
-      cpu: "1000m"
+      memory: "256Mi"
+      cpu: "500m"
+  
+  startupProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 2
   
   autoscaling:
     enabled: true
-    minReplicas: 3
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 65
-    targetMemoryUtilizationPercentage: 75
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
   
   ingress:
     enabled: true
     className: "nginx"
     annotations:
       cert-manager.io/cluster-issuer: "letsencrypt-prod"
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/rate-limit: "100"
     hosts:
-      - host: "app.example.com"
+      - host: "app-prod.example.com"
         paths:
           - path: /
             pathType: Prefix
     tls:
       - secretName: app-prod-tls
         hosts:
-          - app.example.com
+          - app-prod.example.com
 
 # Backend Configuration
 backend:
   enabled: true
-  replicaCount: 3
+  replicaCount: 1
   image:
     repository: "tumbaoka/sherlock-logs-backend"
     tag: "prod"  # Will be updated by ArgoCD Image Updater (patch updates only)
@@ -64,11 +88,20 @@ backend:
   
   resources:
     requests:
-      memory: "512Mi"
-      cpu: "500m"
+      memory: "256Mi"
+      cpu: "200m"
     limits:
-      memory: "1Gi"
-      cpu: "2000m"
+      memory: "512Mi"
+      cpu: "1000m"
+  
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
   
   livenessProbe:
     httpGet:
@@ -91,7 +124,7 @@ postgresql:
   enabled: true
   auth:
     username: "sherlock_prod"
-    password: "" # Use existingSecret
+    password: "prod-password"
     database: "sherlock_prod"
     existingSecret: "postgres-secret-prod"
     existingSecretPasswordKey: "password"
@@ -99,11 +132,8 @@ postgresql:
   primary:
     persistence:
       enabled: true
-      size: 100Gi
-      storageClassName: "fast-ssd"
-  
-  backup:
-    enabled: true
+      size: 5Gi
+      storageClassName: "local-path"
     schedule: "0 2 * * *"  # Daily at 2 AM
   
   metrics:

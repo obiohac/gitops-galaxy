@@ -47,19 +47,24 @@ fi
 echo -e "\n${YELLOW}[4] Checking application sync status...${NC}"
 kubectl get applications -n argocd -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REPO:.spec.source.repoURL
 
-# 5. Check if deployments exist in dev namespace
-echo -e "\n${YELLOW}[5] Checking deployed resources in dev namespace...${NC}"
-if kubectl get namespace dev &>/dev/null; then
-    echo -e "${GREEN}✓ Dev namespace exists${NC}"
-    echo -e "\nDeployments:"
-    kubectl get deployments -n dev || echo "No deployments yet"
-    echo -e "\nPods:"
-    kubectl get pods -n dev || echo "No pods yet"
-    echo -e "\nServices:"
-    kubectl get svc -n dev || echo "No services yet"
-else
-    echo -e "${YELLOW}⚠ Dev namespace doesn't exist yet${NC}"
-fi
+# 5. Check if deployments exist in all environments
+echo -e "\n${YELLOW}[5] Checking deployed resources in all environments...${NC}"
+for ENV in dev staging prod; do
+    echo -e "\n${BLUE}--- Environment: $ENV ---${NC}"
+    if kubectl get namespace $ENV &>/dev/null; then
+        echo -e "${GREEN}✓ $ENV namespace exists${NC}"
+        echo -e "\nDeployments:"
+        kubectl get deployments -n $ENV || echo "No deployments yet"
+        echo -e "\nPods:"
+        kubectl get pods -n $ENV || echo "No pods yet"
+        echo -e "\nServices:"
+        kubectl get svc -n $ENV || echo "No services yet"
+        echo -e "\nHPA Status:"
+        kubectl get hpa -n $ENV 2>/dev/null || echo "No HPA configured"
+    else
+        echo -e "${YELLOW}⚠ $ENV namespace doesn't exist yet${NC}"
+    fi
+done
 
 # 6. Check ArgoCD server accessibility
 echo -e "\n${YELLOW}[6] Checking ArgoCD server connectivity...${NC}"
@@ -85,18 +90,31 @@ else
 fi
 
 # 8. Show logs for troubleshooting
-echo -e "\n${YELLOW}[8] Recent ArgoCD Application Controller logs:${NC}"
-kubectl logs -n argocd deployment/argocd-application-controller --tail=10 || echo "No logs available"
+echo -e "\n${YELLOW}[8] Recent ArgoCD logs:${NC}"
+if kubectl get deployment -n argocd argocd-application-controller &>/dev/null; then
+    echo -e "${BLUE}ArgoCD Application Controller:${NC}"
+    kubectl logs -n argocd deployment/argocd-application-controller --tail=10 2>/dev/null || echo "No logs available"
+else
+    echo -e "${YELLOW}⚠ argocd-application-controller deployment not found${NC}"
+fi
+echo -e "${BLUE}ArgoCD Server:${NC}"
+kubectl logs -n argocd deployment/argocd-server --tail=10 2>/dev/null || echo "No logs available"
 
 # 9. Summary
 echo -e "\n${BLUE}=== Validation Summary ===${NC}"
-echo -e "${GREEN}✓ Setup appears complete${NC}"
-echo -e "\n${YELLOW}Next steps:${NC}"
+echo -e "${GREEN}✓ Validation complete${NC}"
+echo -e "\n${YELLOW}Useful commands:${NC}"
 echo "1. Access ArgoCD UI:"
 echo "   kubectl port-forward -n argocd svc/argocd-server 8080:443"
 echo ""
 echo "2. Deploy applications:"
-echo "   cd gitops-galaxy && make deploy-dev"
+echo "   cd gitops-galaxy && make deploy-all"
+echo ""
+echo "3. Watch ArgoCD apps sync:"
+echo "   make watch-apps"
+echo ""
+echo "4. Check environment status:"
+echo "   make status-dev, make status-staging, make status-prod"
 echo ""
 echo "3. Monitor sync in real-time:"
 echo "   kubectl get applications -n argocd -w"

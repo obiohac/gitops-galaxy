@@ -5,7 +5,7 @@ environment: staging
 # Frontend Configuration
 frontend:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: "tumbaoka/sherlock-logs-frontend"
     tag: "staging"  # Will be updated by ArgoCD Image Updater
@@ -25,10 +25,35 @@ frontend:
       memory: "256Mi"
       cpu: "500m"
   
+  startupProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 3
+  
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 2
+  
   autoscaling:
     enabled: true
-    minReplicas: 2
-    maxReplicas: 5
+    minReplicas: 1
+    maxReplicas: 3
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
   
@@ -50,7 +75,7 @@ frontend:
 # Backend Configuration
 backend:
   enabled: true
-  replicaCount: 2
+  replicaCount: 1
   image:
     repository: "tumbaoka/sherlock-logs-backend"
     tag: "staging"  # Will be updated by ArgoCD Image Updater
@@ -69,26 +94,37 @@ backend:
       memory: "512Mi"
       cpu: "1000m"
   
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 5000
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  
   livenessProbe:
     httpGet:
       path: /health
       port: 5000
     initialDelaySeconds: 30
     periodSeconds: 10
+    failureThreshold: 3
   
   readinessProbe:
     httpGet:
       path: /ready
       port: 5000
-    initialDelaySeconds: 5
+    initialDelaySeconds: 10
     periodSeconds: 5
+    failureThreshold: 2
 
 # PostgreSQL Configuration
 postgresql:
   enabled: true
   auth:
     username: "sherlock_staging"
-    password: "staging-secure-password"
+    password: "staging-password"
     database: "sherlock_staging"
     existingSecret: "postgres-secret-staging"
     existingSecretPasswordKey: "password"
@@ -96,11 +132,8 @@ postgresql:
   primary:
     persistence:
       enabled: true
-      size: 10Gi
+      size: 5Gi
       storageClassName: "local-path"
-  
-  metrics:
-    enabled: true
 
 # Resource Quotas
 resourceQuota:

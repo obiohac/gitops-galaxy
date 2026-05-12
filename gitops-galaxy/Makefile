@@ -6,7 +6,7 @@ PROJECT_DIR := $(CURDIR)
 
 .PHONY: help cluster-setup argocd-install image-updater-setup external-secrets-setup vault-setup \
 	deploy-dev deploy-staging deploy-prod deploy-all status status-dev status-staging status-prod \
-	logs-frontend-dev logs-backend-dev logs-argocd test-helm test-manifests test-connectivity test-db \
+	logs-frontend-dev logs-backend-dev logs-frontend-staging logs-backend-staging logs-frontend-prod logs-backend-prod logs-argocd test-helm test-manifests test-connectivity test-db \
 	validate-argocd watch-apps argocd-password sync-manual \\
 	rollback-dev rollback-staging rollback-prod clean
 
@@ -19,6 +19,7 @@ help:
 	@echo "  make vault-setup"
 	@echo "  make deploy-dev|deploy-staging|deploy-prod|deploy-all"
 	@echo "  make status|status-dev|status-staging|status-prod"
+	@echo "  make logs-frontend-dev|logs-backend-dev|logs-frontend-staging|logs-backend-staging|logs-frontend-prod|logs-backend-prod|logs-argocd"
 	@echo "  make rollback-dev|rollback-staging|rollback-prod"
 	@echo "  make test-helm|test-manifests|test-db|test-connectivity"
 	@echo ""
@@ -58,29 +59,22 @@ external-secrets-setup:
 	HELM_CONFIG_HOME="$(PROJECT_DIR)/.helm/config" HELM_CACHE_HOME="$(PROJECT_DIR)/.helm/cache" HELM_DATA_HOME="$(PROJECT_DIR)/.helm/data" helm repo add external-secrets https://charts.external-secrets.io || true
 	HELM_CONFIG_HOME="$(PROJECT_DIR)/.helm/config" HELM_CACHE_HOME="$(PROJECT_DIR)/.helm/cache" HELM_DATA_HOME="$(PROJECT_DIR)/.helm/data" helm repo update
 	HELM_CONFIG_HOME="$(PROJECT_DIR)/.helm/config" HELM_CACHE_HOME="$(PROJECT_DIR)/.helm/cache" HELM_DATA_HOME="$(PROJECT_DIR)/.helm/data" helm upgrade --install external-secrets external-secrets/external-secrets -n external-secrets-system --create-namespace --set installCRDs=true --wait --timeout 10m
-	# Wait for CRDs to be established with additional verification
-	kubectl wait --for=condition=Established crd/clustersecretstores.external-secrets.io --timeout=120s
-	kubectl wait --for=condition=Established crd/externalsecrets.external-secrets.io --timeout=120s
-	# Additional wait for API server to recognize CRDs
-	sleep 10
-	# Verify CRDs are available
-	kubectl api-resources | grep -q external-secrets || (echo "Waiting for external-secrets CRDs..." && sleep 10)
-	# Retry applying ClusterSecretStore with retry logic
+	# Wait for CRDs and controller to be fully ready before applying custom resources.
+	kubectl wait --for=condition=Established crd/clustersecretstores.external-secrets.io --timeout=90s
+	kubectl wait --for=condition=Established crd/externalsecrets.external-secrets.io --timeout=90s
 	for i in 1 2 3 4 5; do \
-		if kubectl apply --server-side -f secrets/vault/external-secret-store.yaml 2>&1 | grep -q "serverside-applied"; then \
-			echo "ClusterSecretStore applied successfully"; \
+		kubectl api-resources | grep -Eq '^externalsecrets[[:space:]]'; rc1=$$?; \
+		kubectl api-resources | grep -Eq '^clustersecretstores[[:space:]]'; rc2=$$?; \
+		if [ $$rc1 -eq 0 ] && [ $$rc2 -eq 0 ]; then \
+			echo "External Secrets API resources are discoverable"; \
 			break; \
-		elif kubectl apply --server-side -f secrets/vault/external-secret-store.yaml 2>&1 | grep -q "no matches for kind"; then \
-			echo "Attempt $$i: CRDs not ready yet, waiting 10 seconds..."; \
-			sleep 10; \
-		else \
-			echo "Other error occurred, retrying..."; \
-			sleep 5; \
 		fi; \
+		echo "Attempt $$i: waiting for External Secrets API discovery..."; \
+		sleep 3; \
 	done
-	# Apply external secret if ClusterSecretStore succeeded
-	sleep 3
-	kubectl apply --server-side -f secrets/vault/external-secret.yaml || true
+	kubectl rollout status deployment/external-secrets -n external-secrets-system --timeout=90s
+	kubectl apply -f secrets/vault/external-secret-store.yaml
+	kubectl apply -f secrets/vault/external-secret.yaml
 
 vault-setup:
 	kubectl apply -f secrets/vault/vault-config.yaml
@@ -94,6 +88,18 @@ deploy-dev:
 	kubectl apply -f ../manifests/argocd/applications/frontend-app-dev.yaml
 	kubectl apply -f ../manifests/argocd/applications/postgres-app-dev.yaml
 	kubectl apply -f ../manifests/argocd/applications/kubernetes-app.yaml
+	@echo "Waiting for dev deployments to appear and become ready (up to 1.5 minutes)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		count=$$(kubectl get deployment -n dev --no-headers 2>/dev/null | wc -l); \
+		if [ "$$count" -gt 0 ]; then \
+			echo "Found $$count deployment(s) in dev. Waiting for availability..."; \
+			kubectl wait --for=condition=available --timeout=90s deployment --all -n dev || true; \
+			break; \
+		fi; \
+		echo "[$$i/18] No dev deployments yet, waiting 5s..."; \
+		sleep 5; \
+		done
+	@echo "✓ Dev environment ready"
 
 deploy-staging:
 	kubectl apply -f k8s/namespaces/staging.yaml
@@ -103,6 +109,18 @@ deploy-staging:
 	kubectl apply -f ../manifests/argocd/applications/frontend-app-staging.yaml
 	kubectl apply -f ../manifests/argocd/applications/postgres-app-staging.yaml
 	kubectl apply -f ../manifests/argocd/applications/kubernetes-app.yaml
+	@echo "Waiting for staging deployments to appear and become ready (up to 1.5 minutes)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		count=$$(kubectl get deployment -n staging --no-headers 2>/dev/null | wc -l); \
+		if [ "$$count" -gt 0 ]; then \
+			echo "Found $$count deployment(s) in staging. Waiting for availability..."; \
+			kubectl wait --for=condition=available --timeout=90s deployment --all -n staging || true; \
+			break; \
+		fi; \
+		echo "[$$i/18] No staging deployments yet, waiting 5s..."; \
+		sleep 5; \
+		done
+	@echo "✓ Staging environment ready"
 
 deploy-prod:
 	kubectl apply -f k8s/namespaces/prod.yaml
@@ -112,6 +130,18 @@ deploy-prod:
 	kubectl apply -f ../manifests/argocd/applications/frontend-app-prod.yaml
 	kubectl apply -f ../manifests/argocd/applications/postgres-app-prod.yaml
 	kubectl apply -f ../manifests/argocd/applications/kubernetes-app.yaml
+	@echo "Waiting for prod deployments to appear and become ready (up to 1.5 minutes)..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		count=$$(kubectl get deployment -n prod --no-headers 2>/dev/null | wc -l); \
+		if [ "$$count" -gt 0 ]; then \
+			echo "Found $$count deployment(s) in prod. Waiting for availability..."; \
+			kubectl wait --for=condition=available --timeout=90s deployment --all -n prod || true; \
+			break; \
+		fi; \
+		echo "[$$i/18] No prod deployments yet, waiting 5s..."; \
+		sleep 5; \
+		done
+	@echo "✓ Prod environment ready"
 
 deploy-all: deploy-dev deploy-staging deploy-prod
 
@@ -136,10 +166,88 @@ status-prod:
 	kubectl get hpa -n prod || true
 
 logs-frontend-dev:
-	kubectl logs -n dev deployment/frontend --tail=100 || true
+	@echo "Waiting for frontend container in dev before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n dev deployment/frontend --tail=100 >/tmp/frontend-dev.logs 2>/tmp/frontend-dev.err; then \
+			cat /tmp/frontend-dev.logs; \
+			rm -f /tmp/frontend-dev.logs /tmp/frontend-dev.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Frontend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/frontend-dev.err || true; \
+	rm -f /tmp/frontend-dev.logs /tmp/frontend-dev.err
 
 logs-backend-dev:
-	kubectl logs -n dev deployment/backend --tail=100 || true
+	@echo "Waiting for backend container in dev before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n dev deployment/backend --tail=100 >/tmp/backend-dev.logs 2>/tmp/backend-dev.err; then \
+			cat /tmp/backend-dev.logs; \
+			rm -f /tmp/backend-dev.logs /tmp/backend-dev.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Backend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/backend-dev.err || true; \
+	rm -f /tmp/backend-dev.logs /tmp/backend-dev.err
+
+logs-frontend-staging:
+	@echo "Waiting for frontend container in staging before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n staging deployment/frontend --tail=100 >/tmp/frontend-staging.logs 2>/tmp/frontend-staging.err; then \
+			cat /tmp/frontend-staging.logs; \
+			rm -f /tmp/frontend-staging.logs /tmp/frontend-staging.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Frontend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/frontend-staging.err || true; \
+	rm -f /tmp/frontend-staging.logs /tmp/frontend-staging.err
+
+logs-backend-staging:
+	@echo "Waiting for backend container in staging before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n staging deployment/backend --tail=100 >/tmp/backend-staging.logs 2>/tmp/backend-staging.err; then \
+			cat /tmp/backend-staging.logs; \
+			rm -f /tmp/backend-staging.logs /tmp/backend-staging.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Backend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/backend-staging.err || true; \
+	rm -f /tmp/backend-staging.logs /tmp/backend-staging.err
+
+logs-frontend-prod:
+	@echo "Waiting for frontend container in prod before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n prod deployment/frontend --tail=100 >/tmp/frontend-prod.logs 2>/tmp/frontend-prod.err; then \
+			cat /tmp/frontend-prod.logs; \
+			rm -f /tmp/frontend-prod.logs /tmp/frontend-prod.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Frontend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/frontend-prod.err || true; \
+	rm -f /tmp/frontend-prod.logs /tmp/frontend-prod.err
+
+logs-backend-prod:
+	@echo "Waiting for backend container in prod before reading logs..."
+	@for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18; do \
+		if kubectl logs -n prod deployment/backend --tail=100 >/tmp/backend-prod.logs 2>/tmp/backend-prod.err; then \
+			cat /tmp/backend-prod.logs; \
+			rm -f /tmp/backend-prod.logs /tmp/backend-prod.err; \
+			exit 0; \
+		fi; \
+		echo "[$$i/18] Backend not ready yet (ContainerCreating/Pending). Waiting 5s..."; \
+		sleep 5; \
+		done; \
+	cat /tmp/backend-prod.err || true; \
+	rm -f /tmp/backend-prod.logs /tmp/backend-prod.err
 
 logs-argocd:
 	kubectl logs -n $(ARGOCD_NAMESPACE) deployment/argocd-server --tail=100 || true

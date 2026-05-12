@@ -51,7 +51,27 @@ spec:
           containerPort: {{ .Values.frontend.service.targetPort }}
           protocol: TCP
         
+        # Startup probe - gives container 60 seconds to start
+        {{- with .Values.frontend.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- else }}
+        startupProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- end }}
+        
         # Liveness probe - checks if container is alive
+        {{- with .Values.frontend.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- else }}
         livenessProbe:
           httpGet:
             path: /
@@ -61,8 +81,13 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
+        {{- end }}
         
         # Readiness probe - checks if ready to receive traffic
+        {{- with .Values.frontend.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- else }}
         readinessProbe:
           httpGet:
             path: /
@@ -72,6 +97,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 2
+        {{- end }}
         
         # Resource requests and limits
         resources:

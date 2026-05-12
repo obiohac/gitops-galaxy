@@ -63,6 +63,22 @@ spec:
           protocol: TCP
         {{- end }}
         
+        # Startup probe - gives container 60 seconds to start
+        {{- with .Values.backend.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- else }}
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- end }}
+        
         # Liveness probe
         {{- with .Values.backend.livenessProbe }}
         livenessProbe:
