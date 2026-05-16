@@ -77,7 +77,7 @@ sudo mv argocd /usr/local/bin/
 ### Local Installation with Vagrant
 
 ```bash
-git clone <https://gitea.kood.tech/charleso/gitops-galaxy>
+git clone https://gitea.kood.tech/charleso/gitops-galaxy
 cd gitops-galaxy
 
 vagrant up
