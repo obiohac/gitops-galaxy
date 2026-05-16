@@ -1,1 +1,1 @@
-{"virtualbox":{"/home/vagrant/project":{"type":"virtualbox","guestpath":"/home/vagrant/project","hostpath":"D:/Githu/Gitops/gitops","disabled":false,"__vagrantfile":true}}}
+{"virtualbox":{"/home/vagrant/project":{"type":"virtualbox","guestpath":"/home/vagrant/project","hostpath":"C:/Users/osuaf/gitops-galaxy","disabled":false,"__vagrantfile":true}}}

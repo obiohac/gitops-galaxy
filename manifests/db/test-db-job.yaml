@@ -5,15 +5,93 @@ metadata:
   namespace: db-layer
 spec:
   template:
+    metadata:
+      name: db-test-ping
     spec:
-      containers:
-      - name: test
-        image: bitnami/postgresql:latest
-        command: ["psql", "-h", "my-db-postgresql", "-U", "postgres", "-c", "SELECT 1;"]
-        env:
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: my-db-postgresql
-              key: postgres-password
       restartPolicy: Never
+      serviceAccountName: default
+      containers:
+        - name: psql
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: my-db-postgresql
+                  key: postgres-password
+            - name: PGHOST
+              value: my-db-postgresql
+            - name: PGUSER
+              value: postgres
+            - name: PGDATABASE
+              value: startup_db
+            - name: PGPORT
+              value: "5432"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Database Connectivity Test"
+              echo "============================"
+              echo "Host: $PGHOST:$PGPORT"
+              echo "User: $PGUSER"
+              echo "Database: $PGDATABASE"
+              echo ""
+              echo "Waiting for PostgreSQL to be ready (max 120s)..."
+              timeout=120
+              elapsed=0
+              while ! pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" 2>/dev/null; do
+                elapsed=$((elapsed + 1))
+                if [ $elapsed -ge $timeout ]; then
+                  echo "ERROR: PostgreSQL did not respond within ${timeout}s"
+                  echo "Debugging info:"
+                  echo "- Checking DNS resolution..."
+                  nslookup "$PGHOST" || echo "  DNS lookup failed"
+                  echo "- Checking network connectivity..."
+                  timeout 5 nc -zv "$PGHOST" "$PGPORT" || echo "  Network connection failed"
+                  exit 1
+                fi
+                sleep 2
+              done
+              
+              echo "✓ PostgreSQL is ready"
+              echo ""
+              echo "Running connectivity test..."
+              psql -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT 1 as connection_test;"
+              
+              echo ""
+              echo "Running basic operations test..."
+              psql -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" << 'EOF'
+              -- Test: Create table
+              CREATE TABLE IF NOT EXISTS connectivity_test (
+                id SERIAL PRIMARY KEY,
+                test_name VARCHAR(255),
+                created_at TIMESTAMP DEFAULT NOW()
+              );
+              
+              -- Test: Insert data
+              INSERT INTO connectivity_test (test_name) VALUES ('initial_test');
+              
+              -- Test: Select data
+              SELECT COUNT(*) as row_count FROM connectivity_test;
+              
+              -- Cleanup
+              DROP TABLE connectivity_test;
+              
+              -- Final success message
+              SELECT 'Database connectivity test completed successfully' as status;
+              EOF
+              
+              echo ""
+              echo "✓ All connectivity tests passed"
+  backoffLimit: 3
+  activeDeadlineSeconds: 600

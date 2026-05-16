@@ -26,9 +26,13 @@ ArgoCD treats Git as the source of truth, continuously compares Git state with c
 
 Yes. This repository includes database Helm values and deployment support, so the database is managed through chart-based deployment rather than hand-written one-off manifests.
 
+Use this to verify: kubectl get pods -n db-layer -o wide
+You need to ssh into Vagrant first using: Vagrant ssh 
+
 **6. How do you verify the database deployment status?**
 
 Check that the database namespace is created and that all database pods are in the `Running` state with no crash loops or pending pods.
+Verify using: kubectl delete job db-test-ping -n db-layer --ignore-not-found
 
 **7. Does a Kubernetes job successfully connect to the deployed database?**
 
