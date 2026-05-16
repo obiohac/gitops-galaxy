@@ -1,10 +1,6 @@
 #!/bin/bash
 set -e
 
-# ============================================================
-# Database Setup — Bitnami PostgreSQL via Helm
-# ============================================================
-
 # Pre-flight checks
 echo "======================================"
 echo "🔍 Pre-flight Checks"
@@ -117,7 +113,7 @@ fi
 
 echo "Monitoring pod $pod_name for startup issues..."
 start_ts=$(date +%s)
-max_wait_for_start=240  # increased from 120 to 240 seconds for image pull
+max_wait_for_start=240  
 while true; do
   phase=$(kubectl get pod "$pod_name" -n db-layer -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
   container_state_reason=$(kubectl get pod "$pod_name" -n db-layer -o jsonpath='{.status.containerStatuses[0].state.waiting.reason}' 2>/dev/null || echo "")
@@ -180,9 +176,6 @@ echo "--- DB connectivity test logs ---"
 kubectl logs job/db-test-ping -n db-layer || true
 echo "✓ Database connectivity test passed"
 
-# ============================================================
-# Database Persistence Test
-# ============================================================
 echo ""
 echo "======================================"
 echo "🔄 Testing Database Persistence"

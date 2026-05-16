@@ -1,9 +1,5 @@
 # Questions and Answers
 
-Answers below are written to match the project in this repository and its GitOps, Helm, ArgoCD, and secret-management setup.
-
-## Page 1
-
 **1. How does Helm simplify Kubernetes application deployments?**
 
 Helm packages Kubernetes manifests into reusable charts, so a single release can install and manage multiple related resources together.
@@ -19,8 +15,6 @@ A Helm chart typically contains `Chart.yaml`, a `templates/` directory, and one 
 **4. How does ArgoCD implement GitOps principles?**
 
 ArgoCD treats Git as the source of truth, continuously compares Git state with cluster state, and syncs the cluster so it matches the repository.
-
-## Page 2
 
 **5. Is the database deployed using a pre-existing Helm chart?**
 
@@ -46,8 +40,6 @@ Review the job logs and confirm the connection test finishes without errors and 
 
 It should be. Persistence is verified by writing test data, deleting the database pod, and confirming the data still exists after the pod restarts.
 
-## Page 3
-
 **10. How do values files customize a Helm chart?**
 
 Values files override chart defaults so the same templates can deploy different image tags, resource limits, environment variables, and replicas.
@@ -67,8 +59,6 @@ Deploy a broken version, run a rollback, and confirm the application returns to 
 **14. What are Helm lifecycle hooks used for?**
 
 Helm hooks run at specific stages such as pre-install, post-install, pre-upgrade, or post-upgrade, and are useful for jobs like migrations, setup, cleanup, and validation.
-
-## Page 4
 
 **15. How are Helm charts tested?**
 
@@ -90,8 +80,6 @@ The main components are the API server, repository server, application controlle
 
 ArgoCD uses repository credentials and application manifests so it can pull deployment definitions directly from Git.
 
-## Page 5
-
 **20. Is application tracking in ArgoCD properly configured?**
 
 Yes, application tracking is correct when the application shows `Synced`, `Healthy`, and the cluster state matches the Git state.
@@ -107,8 +95,6 @@ Use them to monitor health, inspect diffs, trigger syncs, review application his
 **23. Does RBAC follow least privilege?**
 
 It should. Users and roles must only receive the permissions needed for their tasks, with no unnecessary cluster-wide access.
-
-## Page 6
 
 **24. How do sync options protect safe resource deletion?**
 
@@ -126,8 +112,6 @@ Make a manual change in the cluster, confirm ArgoCD detects the difference, and 
 
 Yes, it should be running as a separate component that watches images and updates deployment definitions when configured.
 
-## Page 7
-
 **28. How does Image Updater handle patch updates with Git write-back?**
 
 When a new patch version is available, Image Updater updates the Git manifest or values file, then ArgoCD syncs the cluster to the new image.
@@ -144,8 +128,6 @@ It uses version constraints or semver rules so only allowed patch updates are ac
 
 Yes, it should automate build, test, image push, manifest update, and deployment synchronization end to end.
 
-## Page 8
-
 **32. Is ArgoCD Application resource management integrated into the CI/CD pipeline?**
 
 Yes, the pipeline should be able to create or update Application resources so deployments stay aligned with Git changes.
@@ -158,8 +140,6 @@ It should detect a failed deployment, then restore the previous stable version a
 
 It should include a project overview, setup instructions, and a usage guide so the full workflow is reproducible.
 
-## Page 9
-
 **35. Do the Helm charts follow best practices?**
 
 Yes, when the chart includes a proper `Chart.yaml`, centralized values, clearly named templates, and a standard Helm directory layout.
@@ -167,8 +147,6 @@ Yes, when the chart includes a proper `Chart.yaml`, centralized values, clearly 
 **36. Does the code meet quality standards?**
 
 It should use consistent formatting, clear comments where needed, and language-specific best practices for maintainability.
-
-## Page 10
 
 **37. Why is external secret management better than Kubernetes Secrets?**
 
