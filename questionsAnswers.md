@@ -1,6 +1,6 @@
 # Questions and Answers
 
-**1. How does Helm simplify Kubernetes application deployments?**
+## **1. How does Helm simplify Kubernetes application deployments?**
 
 Helm packages Kubernetes manifests into reusable charts, so a single release can install and manage multiple related resources together.
 
